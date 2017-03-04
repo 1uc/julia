@@ -54,6 +54,46 @@
 #define container_of(ptr, type, member) \
     ((type *) ((char *)(ptr) - offsetof(type, member)))
 
+#ifdef __has_builtin
+#  define jl_has_builtin(x) __has_builtin(x)
+#else
+#  define jl_has_builtin(x) 0
+#endif
+
+#if jl_has_builtin(__builtin_assume)
+#define jl_assume(cond) (__extension__ ({       \
+                __builtin_assume(!!(cond));     \
+                cond;                           \
+            }))
+#elif defined(_COMPILER_GCC_)
+static inline void jl_assume_(int cond)
+{
+    if (!cond) {
+        __builtin_unreachable();
+    }
+}
+#define jl_assume(cond) (__extension__ ({               \
+                __typeof__(cond) cond_ = (cond);        \
+                jl_assume_(!!(cond_));                  \
+                cond_;                                  \
+            }))
+#elif defined(_COMPILER_INTEL_)
+#define jl_assume(cond) (__extension__ ({       \
+                __assume(!!(cond));             \
+                cond;                           \
+            }))
+#elif defined(_COMPILER_MICROSOFT_) && defined(__cplusplus)
+template<typename T>
+static inline T
+jl_assume(T v)
+{
+    __assume(!!v);
+    return v;
+}
+#else
+#define jl_assume(cond) (cond)
+#endif
+
 typedef struct _jl_taggedvalue_t jl_taggedvalue_t;
 
 #include <julia_threads.h>
